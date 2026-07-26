@@ -57,3 +57,26 @@ Available routes:
 - `GET /healthz`
 - `POST /v1/ocr/image`
 - `POST /v1/ocr/pdf`
+
+
+## Docker
+
+Build the container image:
+
+```bash
+docker build -t ocr-pipeline .
+```
+
+Run the API:
+
+```bash
+docker run --rm -p 8000:8000 --env-file .env ocr-pipeline
+```
+
+## Tests
+
+Run the smoke tests with:
+
+```bash
+pytest
+```

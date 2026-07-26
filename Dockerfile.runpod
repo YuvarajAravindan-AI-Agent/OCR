@@ -1,0 +1,45 @@
+# RunPod Serverless image.
+#
+# Build and push:
+#   docker build -f Dockerfile.runpod -t <user>/ocr-pipeline-runpod:latest .
+#   docker push <user>/ocr-pipeline-runpod:latest
+#
+# Then point a RunPod Serverless endpoint at that image and attach a network
+# volume at /runpod-volume (see HF_HOME below).
+FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    DEBIAN_FRONTEND=noninteractive \
+    OCR_DEVICE=cuda \
+    # RunPod mounts the network volume here. Keeping the HF cache on it means
+    # the 6.3 GB of weights survive between cold starts instead of being
+    # re-downloaded on every one.
+    HF_HOME=/runpod-volume/huggingface \
+    HF_HUB_ENABLE_HF_TRANSFER=1
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3.11 \
+        python3.11-dev \
+        python3-pip \
+        build-essential \
+        git \
+        libgl1 \
+        libglib2.0-0 \
+        libgomp1 \
+        libmagic1 \
+        poppler-utils \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -sf /usr/bin/python3.11 /usr/bin/python
+
+COPY pyproject.toml README.md ./
+COPY src ./src
+
+RUN python -m pip install --upgrade pip \
+    && python -m pip install -e . \
+    && python -m pip install runpod hf_transfer
+
+CMD ["python", "-u", "-m", "ocr_pipeline.runpod_handler"]

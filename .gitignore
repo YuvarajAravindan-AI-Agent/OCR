@@ -9,3 +9,4 @@ dist/
 *.egg-info/
 outputs/
 inputs/
+src/ocr_pipeline/.env

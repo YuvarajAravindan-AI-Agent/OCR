@@ -89,6 +89,17 @@ call, so a 2 MB / 200-page PDF is far more expensive — and far more likely to
 exhaust VRAM — than a 20 MB single-page scan. Raise `OCR_MAX_PAGES` only if you
 know the GPU can take it.
 
+### File type validation
+
+Both endpoints validate uploaded files by magic bytes, not extension. This
+prevents someone from uploading `virus.exe` renamed to `invoice.pdf`. Accepted
+types:
+
+- JPEG, PNG, WebP (images)
+- PDF
+
+If an upload fails type validation, you get a **415 Unsupported Media Type**.
+
 The response returns the parsed text inline:
 
 ```json

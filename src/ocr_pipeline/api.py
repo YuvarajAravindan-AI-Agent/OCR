@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 
 from ocr_pipeline.config import Settings, get_settings
+from ocr_pipeline.file_validation import UnsupportedFileType, validate_file_type
 from ocr_pipeline.limits import InputTooLarge, check_dpi, check_pdf_pages, check_upload_size
 from ocr_pipeline.outputs import collect_text_outputs, list_artifacts
 from ocr_pipeline.pipeline import OcrPipeline
@@ -84,14 +85,16 @@ async def parse_image(
     if mode not in {"gundam", "base"}:
         raise HTTPException(status_code=422, detail="mode must be 'gundam' or 'base'")
 
-    suffix = Path(file.filename or "input.png").suffix or ".png"
     try:
         data = await read_capped(file, settings.max_upload_bytes)
+        mime = validate_file_type(data, file.filename or "upload")
     except InputTooLarge as exc:
         raise HTTPException(status_code=413, detail=str(exc)) from exc
+    except UnsupportedFileType as exc:
+        raise HTTPException(status_code=415, detail=str(exc)) from exc
 
     with tempfile.TemporaryDirectory(prefix="ocr_api_") as tmp_dir:
-        input_path = Path(tmp_dir) / f"upload{suffix}"
+        input_path = Path(tmp_dir) / f"upload{Path(file.filename or 'image.png').suffix}"
         input_path.write_bytes(data)
         output_dir = Path(tmp_dir) / "output"
         result = OcrPipeline().parse_image(input_path, output_dir, mode=mode)
@@ -114,11 +117,14 @@ async def parse_pdf(
     try:
         check_dpi(dpi, settings.max_dpi)
         data = await read_capped(file, settings.max_upload_bytes)
+        mime = validate_file_type(data, file.filename or "upload")
     except InputTooLarge as exc:
         raise HTTPException(status_code=413, detail=str(exc)) from exc
+    except UnsupportedFileType as exc:
+        raise HTTPException(status_code=415, detail=str(exc)) from exc
 
     with tempfile.TemporaryDirectory(prefix="ocr_api_") as tmp_dir:
-        input_path = Path(tmp_dir) / (Path(file.filename or "input.pdf").name)
+        input_path = Path(tmp_dir) / "input.pdf"
         input_path.write_bytes(data)
         output_dir = Path(tmp_dir) / "output"
 

@@ -22,6 +22,7 @@ from typing import Any
 import runpod
 
 from ocr_pipeline.config import get_settings
+from ocr_pipeline.file_validation import UnsupportedFileType, validate_file_type
 from ocr_pipeline.limits import InputTooLarge, check_dpi, check_pdf_pages, check_upload_size
 from ocr_pipeline.outputs import collect_text_outputs, list_artifacts
 from ocr_pipeline.pipeline import OcrPipeline
@@ -50,6 +51,7 @@ def handler(job: dict[str, Any]) -> dict[str, Any]:
     try:
         if "image_b64" in payload:
             data = _decode(payload["image_b64"], "image_b64", settings.max_upload_bytes)
+            validate_file_type(data, "image_b64")
             mode = payload.get("mode", "gundam")
             if mode not in {"gundam", "base"}:
                 raise ValueError("mode must be 'gundam' or 'base'")
@@ -57,12 +59,13 @@ def handler(job: dict[str, Any]) -> dict[str, Any]:
             kind = "image"
         elif "pdf_b64" in payload:
             data = _decode(payload["pdf_b64"], "pdf_b64", settings.max_upload_bytes)
+            validate_file_type(data, "pdf_b64")
             check_dpi(dpi, settings.max_dpi)
             suffix = ".pdf"
             kind = "pdf"
         else:
             return {"error": "provide either image_b64 or pdf_b64 in input"}
-    except (ValueError, InputTooLarge) as exc:
+    except (ValueError, InputTooLarge, UnsupportedFileType) as exc:
         return {"error": str(exc)}
 
     try:

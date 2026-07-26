@@ -5,7 +5,7 @@ from pathlib import Path
 
 from ocr_pipeline.config import Settings, get_settings
 from ocr_pipeline.model_runtime import UnlimitedOCRRuntime, get_runtime
-from ocr_pipeline.pdf_utils import pdf_to_images
+from ocr_pipeline.pdf_utils import cleanup_rasterized_pages, pdf_to_images
 
 
 @dataclass(slots=True)
@@ -69,12 +69,15 @@ class OcrPipeline:
         output_dir.mkdir(parents=True, exist_ok=True)
 
         image_pages = pdf_to_images(pdf_path, dpi=dpi)
-        self.runtime.infer_multi(
-            image_files=image_pages,
-            output_dir=output_dir,
-            prompt=prompt,
-            image_size=1024,
-            ngram_window=1024,
-        )
+        try:
+            self.runtime.infer_multi(
+                image_files=image_pages,
+                output_dir=output_dir,
+                prompt=prompt,
+                image_size=1024,
+                ngram_window=1024,
+            )
+        finally:
+            cleanup_rasterized_pages(image_pages)
 
         return OcrJobResult(input_path=pdf_path, output_dir=output_dir, mode="multi_page", pages=len(image_pages))

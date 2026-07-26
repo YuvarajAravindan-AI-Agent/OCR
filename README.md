@@ -54,9 +54,47 @@ uvicorn ocr_pipeline.api:app --reload
 
 Available routes:
 
-- `GET /healthz`
-- `POST /v1/ocr/image`
-- `POST /v1/ocr/pdf`
+| Route | Auth | Purpose |
+| --- | --- | --- |
+| `GET /healthz` | no | liveness |
+| `GET /v1/limits` | no | published caps, so a client can validate before uploading |
+| `POST /v1/ocr/image` | yes | single image → text |
+| `POST /v1/ocr/pdf` | yes | multi-page PDF → text |
+
+### Authentication
+
+Both OCR routes require an `X-API-Key` header matching `OCR_API_KEY`.
+
+**This is secure by default.** If `OCR_REQUIRE_API_KEY` is true (the default)
+and no key is configured, the API returns 500 rather than serving openly. Set
+`OCR_REQUIRE_API_KEY=false` for local development only.
+
+```bash
+curl -H "X-API-Key: $OCR_API_KEY" \
+     -F file=@inputs/sample_page_1.png \
+     http://localhost:8000/v1/ocr/image
+```
+
+### Request limits
+
+| Setting | Default | Enforced as |
+| --- | --- | --- |
+| `OCR_MAX_PAGES` | 10 | 413 — checked *before* rasterising |
+| `OCR_MAX_UPLOAD_BYTES` | 20 MB | 413 — capped while streaming, never fully buffered |
+| `OCR_MAX_DPI` | 400 | 413 |
+
+⚠️ **Page count matters more than file size.** `pdf_to_images` renders every
+page at the requested DPI and `infer_multi` sends them all to the model in one
+call, so a 2 MB / 200-page PDF is far more expensive — and far more likely to
+exhaust VRAM — than a 20 MB single-page scan. Raise `OCR_MAX_PAGES` only if you
+know the GPU can take it.
+
+The response returns the parsed text inline:
+
+```json
+{"filename": "invoice.pdf", "mode": "multi_page", "pages": 3, "dpi": 300,
+ "text": {"result.mmd": "..."}, "artifacts": ["result.mmd"]}
+```
 
 
 ## Hardware requirements

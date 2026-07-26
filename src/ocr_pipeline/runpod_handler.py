@@ -21,22 +21,18 @@ from typing import Any
 
 import runpod
 
+from ocr_pipeline.config import get_settings
+from ocr_pipeline.limits import InputTooLarge, check_dpi, check_pdf_pages, check_upload_size
 from ocr_pipeline.outputs import collect_text_outputs, list_artifacts
 from ocr_pipeline.pipeline import OcrPipeline
 
-# Guard against a malicious or accidental multi-hundred-MB payload.
-MAX_DECODED_BYTES = 50 * 1024 * 1024
 
-
-def _decode(value: str, field: str) -> bytes:
+def _decode(value: str, field: str, max_bytes: int) -> bytes:
     try:
         raw = base64.b64decode(value, validate=True)
     except (binascii.Error, ValueError) as exc:
         raise ValueError(f"{field} is not valid base64: {exc}") from exc
-    if len(raw) > MAX_DECODED_BYTES:
-        raise ValueError(f"{field} exceeds {MAX_DECODED_BYTES} bytes")
-    if not raw:
-        raise ValueError(f"{field} is empty")
+    check_upload_size(len(raw), max_bytes)
     return raw
 
 
@@ -48,22 +44,25 @@ def _warm() -> OcrPipeline:
 
 def handler(job: dict[str, Any]) -> dict[str, Any]:
     payload = job.get("input") or {}
+    settings = get_settings()
+    dpi = int(payload.get("dpi", 300))
 
     try:
         if "image_b64" in payload:
-            data = _decode(payload["image_b64"], "image_b64")
+            data = _decode(payload["image_b64"], "image_b64", settings.max_upload_bytes)
             mode = payload.get("mode", "gundam")
             if mode not in {"gundam", "base"}:
                 raise ValueError("mode must be 'gundam' or 'base'")
             suffix = payload.get("suffix", ".png")
             kind = "image"
         elif "pdf_b64" in payload:
-            data = _decode(payload["pdf_b64"], "pdf_b64")
+            data = _decode(payload["pdf_b64"], "pdf_b64", settings.max_upload_bytes)
+            check_dpi(dpi, settings.max_dpi)
             suffix = ".pdf"
             kind = "pdf"
         else:
             return {"error": "provide either image_b64 or pdf_b64 in input"}
-    except ValueError as exc:
+    except (ValueError, InputTooLarge) as exc:
         return {"error": str(exc)}
 
     try:
@@ -76,9 +75,12 @@ def handler(job: dict[str, Any]) -> dict[str, Any]:
             if kind == "image":
                 result = pipeline.parse_image(input_path, output_dir, mode=mode)
             else:
-                result = pipeline.parse_pdf(
-                    input_path, output_dir, dpi=int(payload.get("dpi", 300))
-                )
+                # Reject page-heavy PDFs before rasterising anything.
+                try:
+                    check_pdf_pages(input_path, settings.max_pages)
+                except InputTooLarge as exc:
+                    return {"error": str(exc)}
+                result = pipeline.parse_pdf(input_path, output_dir, dpi=dpi)
 
             # Collect before the temp directory disappears.
             return {

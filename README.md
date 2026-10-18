@@ -22,7 +22,11 @@ cp .env.example .env
 
 ## API key placeholder
 
-The codebase reads `OCR_API_KEY` from the environment through the settings layer in `src/ocr_pipeline/config.py`. The tutorial uses a local Hugging Face model load, so the API key is optional unless you later connect the app to a hosted model endpoint or gateway.
+Set `MODEL_API_KEY` in `.env` for the token used to download/access the model.
+`HF_TOKEN` is also supported for Hugging Face tooling. `OCR_API_KEY` is the
+separate key used to protect the FastAPI endpoints. The tutorial uses a local
+Hugging Face model load, so a model key is only needed when the model registry
+or a hosted gateway requires authentication.
 
 ## CLI examples
 

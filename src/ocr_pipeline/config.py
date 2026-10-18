@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,7 +16,10 @@ class Settings(BaseSettings):
     )
 
     api_key: str | None = Field(default=None, validation_alias="OCR_API_KEY")
-    hf_token: str | None = Field(default=None, validation_alias="HF_TOKEN")
+    hf_token: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("MODEL_API_KEY", "HF_TOKEN"),
+    )
     model_name: str = Field(default="baidu/Unlimited-OCR", validation_alias="OCR_MODEL_NAME")
     output_dir: Path = Field(default=Path("outputs"), validation_alias="OCR_OUTPUT_DIR")
     device: str = Field(default="cuda", validation_alias="OCR_DEVICE")

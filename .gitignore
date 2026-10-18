@@ -10,3 +10,14 @@ dist/
 outputs/
 inputs/
 src/ocr_pipeline/.env
+node_modules/
+venv/
+*.pyc
+.env.*
+!.env.example
+*.mp4
+*.mov
+*.zip
+*.jar
+*.log
+.DS_Store
